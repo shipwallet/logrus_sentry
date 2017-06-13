@@ -23,6 +23,15 @@ var (
 	}
 )
 
+// SendErrorStrategy specifies how errors are send to sentry
+type SendErrorStrategy int
+
+// Possible values of SendErrorStrategy
+const (
+	SendErrorAsException SendErrorStrategy = iota
+	SendErrorAsStacktrace
+)
+
 // BufSize controls the number of logs that can be in progress before logging
 // will start blocking. Set logrus_sentry.BufSize = <value> _before_ calling
 // NewAsync*().
@@ -75,8 +84,8 @@ type StackTraceConfiguration struct {
 	// if the stack frame's package matches one of these prefixes
 	// sentry will identify the stack frame as "in_app"
 	InAppPrefixes []string
-	// whether sending exception type should be enabled.
-	SendExceptionType bool
+	// specifies, how errors are send to sentry. By default they are send as exceptions.
+	SendErrorStrategy SendErrorStrategy
 }
 
 // NewSentryHook creates a hook to be added to an instance of logger
@@ -112,7 +121,7 @@ func NewWithClientSentryHook(client *raven.Client, levels []logrus.Level) (*Sent
 			Skip:              5,
 			Context:           0,
 			InAppPrefixes:     nil,
-			SendExceptionType: true,
+			SendErrorStrategy: SendErrorAsException,
 		},
 		client:       client,
 		levels:       levels,
@@ -199,12 +208,11 @@ func (hook *SentryHook) Fire(entry *logrus.Entry) error {
 			if currentStacktrace == nil {
 				currentStacktrace = raven.NewStacktrace(stConfig.Skip, stConfig.Context, stConfig.InAppPrefixes)
 			}
-			err := errors.Cause(err)
-			exc := raven.NewException(err, currentStacktrace)
-			if !stConfig.SendExceptionType {
-				exc.Type = ""
+			if stConfig.SendErrorStrategy == SendErrorAsException {
+				packet.Interfaces = append(packet.Interfaces, raven.NewException(err, currentStacktrace))
+			} else if stConfig.SendErrorStrategy == SendErrorAsStacktrace {
+				packet.Interfaces = append(packet.Interfaces, currentStacktrace)
 			}
-			packet.Interfaces = append(packet.Interfaces, exc)
 			packet.Culprit = err.Error()
 		} else {
 			currentStacktrace := raven.NewStacktrace(stConfig.Skip, stConfig.Context, stConfig.InAppPrefixes)

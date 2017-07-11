@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/getsentry/raven-go"
 	pkgerrors "github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 const (
